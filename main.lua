@@ -8,7 +8,6 @@ local camera = workspace.CurrentCamera
 local isEnabled = false
 local isRunning = true
 local isLeftMouseDown = false
-local isRightMouseDown = false
 local leftClickStartTime = 0
 local lastAutoShot = 0
 local fireRate = 0
@@ -85,7 +84,7 @@ heartbeatConnection = RunService.Heartbeat:Connect(function()
     local isHoldingAuto = isLeftMouseDown and (currentTime - leftClickStartTime >= 0.6)
 
     if isEnabled and not isLobbyVisible() then
-        if isRightMouseDown or isHoldingAuto then
+        if isLeftMouseDown or isHoldingAuto then
             if currentTime - lastAutoShot >= fireRate then
                 targetPlayer = getClosestPlayer()
                 if targetPlayer then
@@ -139,22 +138,16 @@ inputConnection = UserInputService.InputBegan:Connect(function(input, isProcesse
                 mouse1click()
                 lastAutoShot = tick()
             end
-        elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
-            isRightMouseDown = true
         end
     end
 end)
-
 local inputEndedConnection
 inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
     if not isRunning then
         inputEndedConnection:Disconnect()
         return
     end
-
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         isLeftMouseDown = false
-    elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
-        isRightMouseDown = false
     end
 end)

@@ -14,6 +14,10 @@ local fireRate = 0
 local targetPlayer = nil
 local ignoredPlayers = {}
 
+-- NEW: The offset to aim slightly above the center of the head (0.5 studs up)
+-- Tweak the 0.5 up or down if it aims too high or too low for the avatars in your game.
+local headOffset = Vector3.new(0, 0.5, 0) 
+
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "StatusIndicator"
 screenGui.Parent = localPlayer:WaitForChild("PlayerGui")
@@ -39,6 +43,51 @@ local function isLobbyVisible()
     return false
 end
 
+local function isVisible(target)
+    local char = localPlayer.Character
+    local targetChar = target.Character
+    if not char or not char:FindFirstChild("Head") then return false end
+    if not targetChar or not targetChar:FindFirstChild("Head") then return false end
+
+    local origin = char.Head.Position
+    -- CHANGED: Added headOffset to target the hairline for the raycast
+    local targetPos = targetChar.Head.Position + headOffset
+    local direction = targetPos - origin
+
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    
+    local excludeList = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p.Character then
+            table.insert(excludeList, p.Character)
+        end
+    end
+    params.FilterDescendantsInstances = excludeList
+
+    local currentOrigin = origin
+    
+    while true do
+        local result = workspace:Raycast(currentOrigin, direction, params)
+        if not result then
+            return true
+        end
+
+        local hitPart = result.Instance
+        if hitPart then
+            if hitPart.Size.X <= 1 or hitPart.Size.Y <= 1 or hitPart.Size.Z <= 1 then
+                table.insert(excludeList, hitPart)
+                params.FilterDescendantsInstances = excludeList
+            else
+                return false
+            end
+        else
+            break
+        end
+    end
+    return true
+end
+
 local function getClosestPlayer()
     local closestPlayer = nil
     local shortestDistance = math.huge
@@ -53,11 +102,14 @@ local function getClosestPlayer()
             local humanoid = player.Character.Humanoid
             
             if humanoid.Health > 0 and not table.find(ignoredPlayers, player) then
-                local distance = (head.Position - myPos).Magnitude
+                if isVisible(player) then
+                    -- CHANGED: Added headOffset to calculate distance to the new hairline target
+                    local distance = ((head.Position + headOffset) - myPos).Magnitude
 
-                if distance < shortestDistance then
-                    closestPlayer = player
-                    shortestDistance = distance
+                    if distance < shortestDistance then
+                        closestPlayer = player
+                        shortestDistance = distance
+                    end
                 end
             end
         end
@@ -69,7 +121,8 @@ local function lockCameraToHead()
     if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("Head") then
         local head = targetPlayer.Character.Head
         local cameraPosition = camera.CFrame.Position
-        camera.CFrame = CFrame.new(cameraPosition, head.Position)
+        -- CHANGED: Added headOffset to lock the camera to the hairline
+        camera.CFrame = CFrame.new(cameraPosition, head.Position + headOffset)
     end
 end
 
@@ -84,7 +137,7 @@ heartbeatConnection = RunService.Heartbeat:Connect(function()
     local isHoldingAuto = isLeftMouseDown and (currentTime - leftClickStartTime >= 0.6)
 
     if isEnabled and not isLobbyVisible() then
-        if isLeftMouseDown or isHoldingAuto then
+        if isHoldingAuto then
             if currentTime - lastAutoShot >= fireRate then
                 targetPlayer = getClosestPlayer()
                 if targetPlayer then
@@ -141,6 +194,7 @@ inputConnection = UserInputService.InputBegan:Connect(function(input, isProcesse
         end
     end
 end)
+
 local inputEndedConnection
 inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
     if not isRunning then

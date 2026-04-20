@@ -14,8 +14,6 @@ local fireRate = 0
 local targetPlayer = nil
 local ignoredPlayers = {}
 
--- NEW: The offset to aim slightly above the center of the head (0.5 studs up)
--- Tweak the 0.5 up or down if it aims too high or too low for the avatars in your game.
 local headOffset = Vector3.new(0, 0.5, 0) 
 
 local screenGui = Instance.new("ScreenGui")
@@ -43,32 +41,16 @@ local function isLobbyVisible()
     return false
 end
 
-local function isVisible(target)
-    local char = localPlayer.Character
-    local targetChar = target.Character
-    if not char or not char:FindFirstChild("Head") then return false end
-    if not targetChar or not targetChar:FindFirstChild("Head") then return false end
-
-    local origin = char.Head.Position
-    -- CHANGED: Added headOffset to target the hairline for the raycast
-    local targetPos = targetChar.Head.Position + headOffset
+local function checkLineOfSight(origin, targetPos, baseExcludeList)
     local direction = targetPos - origin
-
     local params = RaycastParams.new()
     params.FilterType = Enum.RaycastFilterType.Exclude
-    
-    local excludeList = {}
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p.Character then
-            table.insert(excludeList, p.Character)
-        end
-    end
+
+    local excludeList = {table.unpack(baseExcludeList)}
     params.FilterDescendantsInstances = excludeList
 
-    local currentOrigin = origin
-    
     while true do
-        local result = workspace:Raycast(currentOrigin, direction, params)
+        local result = workspace:Raycast(origin, direction, params)
         if not result then
             return true
         end
@@ -88,6 +70,45 @@ local function isVisible(target)
     return true
 end
 
+local function isVisible(target)
+    local char = localPlayer.Character
+    local targetChar = target.Character
+    if not char or not char:FindFirstChild("Head") then return false end
+    if not targetChar or not targetChar:FindFirstChild("Head") then return false end
+
+    local origin = char.Head.Position
+    local targetHead = targetChar.Head
+
+    local baseExcludeList = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p.Character then
+            table.insert(baseExcludeList, p.Character)
+        end
+    end
+
+    local successfulHits = 0
+    local headSize = targetHead.Size
+
+    local offsets = {
+        Vector3.new(0, 0, 0),
+        Vector3.new(0.5, 0, 0),
+        Vector3.new(-0.5, 0, 0),
+        Vector3.new(0, 0.5, 0),
+        Vector3.new(0, -0.5, 0)
+    }
+
+    for _, offset in ipairs(offsets) do
+        local localOffset = Vector3.new(offset.X * headSize.X, offset.Y * headSize.Y, offset.Z * headSize.Z)
+        local targetPos = (targetHead.CFrame * localOffset) + headOffset
+        
+        if checkLineOfSight(origin, targetPos, baseExcludeList) then
+            successfulHits = successfulHits + 1
+        end
+    end
+
+    return successfulHits > 2
+end
+
 local function getClosestPlayer()
     local closestPlayer = nil
     local shortestDistance = math.huge
@@ -103,7 +124,6 @@ local function getClosestPlayer()
             
             if humanoid.Health > 0 and not table.find(ignoredPlayers, player) then
                 if isVisible(player) then
-                    -- CHANGED: Added headOffset to calculate distance to the new hairline target
                     local distance = ((head.Position + headOffset) - myPos).Magnitude
 
                     if distance < shortestDistance then
@@ -121,7 +141,6 @@ local function lockCameraToHead()
     if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("Head") then
         local head = targetPlayer.Character.Head
         local cameraPosition = camera.CFrame.Position
-        -- CHANGED: Added headOffset to lock the camera to the hairline
         camera.CFrame = CFrame.new(cameraPosition, head.Position + headOffset)
     end
 end

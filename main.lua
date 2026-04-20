@@ -52,7 +52,7 @@ local function checkLineOfSight(origin, targetPos, baseExcludeList)
     while true do
         local result = workspace:Raycast(origin, direction, params)
         if not result then
-            return true
+            return true 
         end
 
         local hitPart = result.Instance
@@ -61,7 +61,7 @@ local function checkLineOfSight(origin, targetPos, baseExcludeList)
                 table.insert(excludeList, hitPart)
                 params.FilterDescendantsInstances = excludeList
             else
-                return false
+                return false 
             end
         else
             break
@@ -215,12 +215,14 @@ inputConnection = UserInputService.InputBegan:Connect(function(input, isProcesse
 end)
 
 local inputEndedConnection
-inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
+inputEndedConnection = UserInputService.InputEnded:Connect(function(input, isProcessed)
     if not isRunning then
         inputEndedConnection:Disconnect()
         return
     end
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        isLeftMouseDown = false
+        if not UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+            isLeftMouseDown = false
+        end
     end
 end)

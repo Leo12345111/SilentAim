@@ -6,6 +6,7 @@ local CoreGui = game:GetService("CoreGui")
 local localPlayer = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
+-- Aimbot Variables
 local isEnabled = false
 local isRunning = true
 local isLeftMouseDown = false
@@ -16,14 +17,17 @@ local targetPlayer = nil
 local ignoredPlayers = {}
 local headOffset = Vector3.new(0, 0.5, 0)
 
+-- Fly Variables
 local flying = false
 local flySpeed = 200
 local bv = nil
 local bg = nil
 
+-- ESP Variables
 local ESPEnabled = false
 local Drawings = {}
 
+-- Create Aimbot Indicator UI (Bottom Right Circle)
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "SilentAimIndicator"
 if syn and syn.protect_gui then syn.protect_gui(screenGui) end 
@@ -33,7 +37,7 @@ local indicator = Instance.new("Frame")
 indicator.Name = "Circle"
 indicator.Size = UDim2.new(0, 30, 0, 30)
 indicator.Position = UDim2.new(1, -50, 1, -50) 
-indicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0) 
+indicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Starts Red (OFF)
 indicator.BorderSizePixel = 0
 indicator.Parent = screenGui
 
@@ -41,6 +45,7 @@ local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(1, 0) 
 corner.Parent = indicator
 
+-- Utility Functions
 local function isLobbyVisible()
     local mainGui = localPlayer.PlayerGui:FindFirstChild("MainGui")
     if mainGui and mainGui:FindFirstChild("MainFrame") and mainGui.MainFrame:FindFirstChild("Lobby") and mainGui.MainFrame.Lobby:FindFirstChild("Currency") then
@@ -59,9 +64,7 @@ local function checkLineOfSight(origin, targetPos, baseExcludeList)
 
     while true do
         local result = workspace:Raycast(origin, direction, params)
-        if not result then
-            return true
-        end
+        if not result then return true end
 
         local hitPart = result.Instance
         if hitPart then
@@ -86,29 +89,21 @@ local function isVisible(target)
 
     local origin = char.Head.Position
     local targetHead = targetChar.Head
-
     local baseExcludeList = {}
     for _, p in ipairs(Players:GetPlayers()) do
-        if p.Character then
-            table.insert(baseExcludeList, p.Character)
-        end
+        if p.Character then table.insert(baseExcludeList, p.Character) end
     end
 
     local successfulHits = 0
     local headSize = targetHead.Size
-
     local offsets = {
-        Vector3.new(0, 0, 0),
-        Vector3.new(0.5, 0, 0),
-        Vector3.new(-0.5, 0, 0),
-        Vector3.new(0, 0.5, 0),
-        Vector3.new(0, -0.5, 0)
+        Vector3.new(0, 0, 0), Vector3.new(0.5, 0, 0), Vector3.new(-0.5, 0, 0),
+        Vector3.new(0, 0.5, 0), Vector3.new(0, -0.5, 0)
     }
 
     for _, offset in ipairs(offsets) do
         local localOffset = Vector3.new(offset.X * headSize.X, offset.Y * headSize.Y, offset.Z * headSize.Z)
         local targetPos = (targetHead.CFrame * localOffset) + headOffset
-        
         if checkLineOfSight(origin, targetPos, baseExcludeList) then
             successfulHits = successfulHits + 1
         end
@@ -133,7 +128,6 @@ local function getClosestPlayer()
             if humanoid.Health > 0 and not table.find(ignoredPlayers, player) then
                 if isVisible(player) then
                     local distance = ((head.Position + headOffset) - myPos).Magnitude
-
                     if distance < shortestDistance then
                         closestPlayer = player
                         shortestDistance = distance
@@ -153,6 +147,7 @@ local function lockCameraToHead()
     end
 end
 
+-- ESP Functions
 local function CreateESP(player)
     local box = Drawing.new("Square")
     box.Visible = false
@@ -188,19 +183,14 @@ local function CreateESP(player)
     nameText.Outline = true
 
     Drawings[player] = {
-        Box = box,
-        Outline = outline,
-        HealthBar = healthBar,
-        HealthText = healthText,
-        NameText = nameText
+        Box = box, Outline = outline, HealthBar = healthBar,
+        HealthText = healthText, NameText = nameText
     }
 end
 
 local function RemoveESP(player)
     if Drawings[player] then
-        for _, obj in pairs(Drawings[player]) do
-            obj:Remove()
-        end
+        for _, obj in pairs(Drawings[player]) do obj:Remove() end
         Drawings[player] = nil
     end
 end
@@ -212,30 +202,17 @@ for _, player in pairs(Players:GetPlayers()) do
     if player ~= localPlayer then CreateESP(player) end
 end
 
+-- Fly Function
 local function toggleFly()
     flying = not flying
-    local char = localPlayer.Character
-    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-    
-    local hrp = char.HumanoidRootPart
-    
-    if flying then
-        bv = Instance.new("BodyVelocity")
-        bg = Instance.new("BodyGyro")
-        
-        bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-        bv.Velocity = Vector3.zero
-        bv.Parent = hrp
-        
-        bg.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-        bg.CFrame = camera.CFrame
-        bg.Parent = hrp
-    else
-        if bv then bv:Destroy() end
-        if bg then bg:Destroy() end
+    if not flying then
+        -- Clean up physics if we turn it off intentionally
+        if bv then bv:Destroy(); bv = nil end
+        if bg then bg:Destroy(); bg = nil end
     end
 end
 
+-- Main Loops
 local heartbeatConnection
 heartbeatConnection = RunService.Heartbeat:Connect(function()
     if not isRunning then
@@ -265,6 +242,7 @@ end)
 RunService.RenderStepped:Connect(function()
     if not isRunning then return end
 
+    -- ESP Rendering
     if ESPEnabled then
         for player, data in pairs(Drawings) do
             local character = player.Character
@@ -306,13 +284,31 @@ RunService.RenderStepped:Connect(function()
         end
     else
         for _, data in pairs(Drawings) do
-            for _, obj in pairs(data) do
-                obj.Visible = false
-            end
+            for _, obj in pairs(data) do obj.Visible = false end
         end
     end
 
-    if flying and localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") and bv and bg then
+    -- Resilient Fly Mechanics
+    if flying and localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local hrp = localPlayer.Character.HumanoidRootPart
+        
+        -- Automatically recreate physics bodies if they were lost during a teleport
+        if not bv or bv.Parent ~= hrp then
+            if bv then bv:Destroy() end
+            bv = Instance.new("BodyVelocity")
+            bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+            bv.Velocity = Vector3.zero
+            bv.Parent = hrp
+        end
+        
+        if not bg or bg.Parent ~= hrp then
+            if bg then bg:Destroy() end
+            bg = Instance.new("BodyGyro")
+            bg.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+            bg.CFrame = camera.CFrame
+            bg.Parent = hrp
+        end
+
         local moveVector = Vector3.zero
         if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveVector = moveVector + camera.CFrame.LookVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveVector = moveVector - camera.CFrame.LookVector end
@@ -330,6 +326,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
+-- Input Handling
 local inputConnection
 inputConnection = UserInputService.InputBegan:Connect(function(input, isProcessed)
     if not isRunning then
@@ -338,6 +335,7 @@ inputConnection = UserInputService.InputBegan:Connect(function(input, isProcesse
     end
 
     if input.KeyCode == Enum.KeyCode.K and not isProcessed then
+        -- TOGGLE AIMBOT AND UPDATE CIRCLE COLOR
         isEnabled = not isEnabled
         indicator.BackgroundColor3 = isEnabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
         
@@ -351,6 +349,7 @@ inputConnection = UserInputService.InputBegan:Connect(function(input, isProcesse
                 end
             end
         end
+        -- Briefly flash yellow to confirm ignore list updated
         indicator.BackgroundColor3 = Color3.fromRGB(255, 255, 0)
         task.delay(0.5, function()
             if isRunning then

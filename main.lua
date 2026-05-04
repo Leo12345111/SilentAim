@@ -27,10 +27,17 @@ local usePrediction = true
 local projectileSpeed = 7000
 local pingCompensation = 0.05
 
+-- Safely handle UI Parent for different executors
+local function getSafeGuiParent()
+    if gethui and typeof(gethui) == "function" then
+        return gethui()
+    end
+    return CoreGui
+end
+
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "SilentAimIndicator"
-if syn and syn.protect_gui then syn.protect_gui(screenGui) end 
-screenGui.Parent = CoreGui 
+screenGui.Parent = getSafeGuiParent()
 
 local indicator = Instance.new("Frame")
 indicator.Name = "Circle"
@@ -149,6 +156,9 @@ local function lockCameraToHead()
 end
 
 local function CreateESP(player)
+    -- SAFEGUARD: Check if the executor actually supports the Drawing API
+    if type(Drawing) ~= "table" or type(Drawing.new) ~= "function" then return end
+
     local box = Drawing.new("Square")
     box.Visible = false
     box.Color = Color3.new(1, 0, 0)

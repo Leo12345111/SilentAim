@@ -25,7 +25,7 @@ local Drawings = {}
 
 -- Prediction Variables
 local usePrediction = true
-local projectileSpeed = 5000 -- Adjust this to match the game's bullet speed
+local projectileSpeed = 7000 -- Adjust this to match the game's bullet speed
 local pingCompensation = 0.05 -- Time in seconds to offset latency (optional)
 
 local screenGui = Instance.new("ScreenGui")
@@ -214,36 +214,16 @@ end
 local function toggleFly()
     flying = not flying
     if not flying then
+        -- Clean up physics
         if bv then bv:Destroy(); bv = nil end
         if bg then bg:Destroy(); bg = nil end
-    end
-end
-
-local heartbeatConnection
-heartbeatConnection = RunService.Heartbeat:Connect(function()
-    if not isRunning then
-        heartbeatConnection:Disconnect()
-        return
-    end
-
-    local currentTime = tick()
-    local isHoldingAuto = isLeftMouseDown and (currentTime - leftClickStartTime >= 0.6)
-
-    if isEnabled and not isLobbyVisible() then
-        if isHoldingAuto then
-            if currentTime - lastAutoShot >= fireRate then
-                targetPlayer = getClosestPlayer()
-                if targetPlayer then
-                    lockCameraToHead()
-                    if typeof(mouse1click) == "function" then
-                        mouse1click()
-                        lastAutoShot = currentTime
-                    end
-                end
-            end
+        
+        -- Turn normal physics back on
+        if localPlayer.Character and localPlayer.Character:FindFirstChild("Humanoid") then
+            localPlayer.Character.Humanoid.PlatformStand = false
         end
     end
-end)
+end
 
 RunService.RenderStepped:Connect(function()
     if not isRunning then return end
@@ -297,6 +277,12 @@ RunService.RenderStepped:Connect(function()
 
     if flying and localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") then
         local hrp = localPlayer.Character.HumanoidRootPart
+        local humanoid = localPlayer.Character:FindFirstChild("Humanoid")
+        
+        -- Tell Roblox to stop fighting the fly script
+        if humanoid then
+            humanoid.PlatformStand = true
+        end
         
         if not bv or bv.Parent ~= hrp then
             if bv then bv:Destroy() end
@@ -329,7 +315,6 @@ RunService.RenderStepped:Connect(function()
             bv.Velocity = Vector3.zero
         end
     end
-end)
 
 local inputConnection
 inputConnection = UserInputService.InputBegan:Connect(function(input, isProcessed)

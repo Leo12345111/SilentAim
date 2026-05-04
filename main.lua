@@ -25,7 +25,7 @@ local Drawings = {}
 
 -- Prediction Variables
 local usePrediction = true
-local projectileSpeed = 1500 -- Adjust this to match the game's bullet speed
+local projectileSpeed = 5000 -- Adjust this to match the game's bullet speed
 local pingCompensation = 0.05 -- Time in seconds to offset latency (optional)
 
 local screenGui = Instance.new("ScreenGui")

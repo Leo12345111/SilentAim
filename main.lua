@@ -49,14 +49,37 @@ local function isLobbyVisible()
 end
 
 local function isTeammate(player)
+    -- 1. Check if the player is yourself
     if player == localPlayer then return true end
+    
+    -- 2. Fallback: Check standard built-in Roblox Teams
+    if localPlayer.Team ~= nil and player.Team == localPlayer.Team then
+        return true
+    end
+
+    -- 3. Check for the custom object in the HumanoidRootPart
     local char = player.Character
     if char and char:FindFirstChild("HumanoidRootPart") then
-        local teamValue = char.HumanoidRootPart:FindFirstChild("isTeammate")
-        if teamValue and teamValue.Value == true then
-            return true
+        local hrp = char.HumanoidRootPart
+        
+        -- Check for both common capitalization types
+        local teamValue = hrp:FindFirstChild("isTeammate") or hrp:FindFirstChild("IsTeammate")
+        
+        if teamValue then
+            -- Safely check if it has a .Value property (BoolValue, StringValue, etc.)
+            local hasValue, actualValue = pcall(function() return teamValue.Value end)
+            
+            if hasValue then
+                if actualValue == true or tostring(actualValue):lower() == "true" then
+                    return true
+                end
+            else
+                -- If the object exists but doesn't have a .Value (like a Folder acting as a tag), assume true
+                return true
+            end
         end
     end
+    
     return false
 end
 

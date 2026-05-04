@@ -23,10 +23,9 @@ local bg = nil
 local ESPEnabled = false
 local Drawings = {}
 
--- Prediction Variables
 local usePrediction = true
-local projectileSpeed = 7000 -- Adjust this to match the game's bullet speed
-local pingCompensation = 0.05 -- Time in seconds to offset latency (optional)
+local projectileSpeed = 7000
+local pingCompensation = 0.05
 
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "SilentAimIndicator"
@@ -139,20 +138,12 @@ local function lockCameraToHead()
         local aimPosition = head.Position + headOffset
 
         if usePrediction then
-            -- Get the target's current movement velocity
             local velocity = targetHRP.AssemblyLinearVelocity
-            
-            -- Calculate distance from your camera to the target
             local distance = (aimPosition - cameraPosition).Magnitude
-            
-            -- Calculate how long the bullet will take to reach that distance
             local timeToHit = (distance / projectileSpeed) + pingCompensation
-            
-            -- Offset the aim position based on their velocity and the time it takes to hit
             aimPosition = aimPosition + (velocity * timeToHit)
         end
 
-        -- Lock the camera to the newly calculated predicted position
         camera.CFrame = CFrame.new(cameraPosition, aimPosition)
     end
 end
@@ -214,16 +205,40 @@ end
 local function toggleFly()
     flying = not flying
     if not flying then
-        -- Clean up physics
         if bv then bv:Destroy(); bv = nil end
         if bg then bg:Destroy(); bg = nil end
         
-        -- Turn normal physics back on
         if localPlayer.Character and localPlayer.Character:FindFirstChild("Humanoid") then
             localPlayer.Character.Humanoid.PlatformStand = false
         end
     end
 end
+
+local heartbeatConnection
+heartbeatConnection = RunService.Heartbeat:Connect(function()
+    if not isRunning then
+        heartbeatConnection:Disconnect()
+        return
+    end
+
+    local currentTime = tick()
+    local isHoldingAuto = isLeftMouseDown and (currentTime - leftClickStartTime >= 0.6)
+
+    if isEnabled and not isLobbyVisible() then
+        if isHoldingAuto then
+            if currentTime - lastAutoShot >= fireRate then
+                targetPlayer = getClosestPlayer()
+                if targetPlayer then
+                    lockCameraToHead()
+                    if typeof(mouse1click) == "function" then
+                        mouse1click()
+                        lastAutoShot = currentTime
+                    end
+                end
+            end
+        end
+    end
+end)
 
 RunService.RenderStepped:Connect(function()
     if not isRunning then return end
@@ -279,7 +294,6 @@ RunService.RenderStepped:Connect(function()
         local hrp = localPlayer.Character.HumanoidRootPart
         local humanoid = localPlayer.Character:FindFirstChild("Humanoid")
         
-        -- Tell Roblox to stop fighting the fly script
         if humanoid then
             humanoid.PlatformStand = true
         end
@@ -315,6 +329,7 @@ RunService.RenderStepped:Connect(function()
             bv.Velocity = Vector3.zero
         end
     end
+end)
 
 local inputConnection
 inputConnection = UserInputService.InputBegan:Connect(function(input, isProcessed)

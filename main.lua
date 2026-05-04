@@ -6,7 +6,6 @@ local CoreGui = game:GetService("CoreGui")
 local localPlayer = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
--- Aimbot Variables
 local isEnabled = false
 local isRunning = true
 local isLeftMouseDown = false
@@ -14,20 +13,16 @@ local leftClickStartTime = 0
 local lastAutoShot = 0
 local fireRate = 0
 local targetPlayer = nil
-local ignoredPlayers = {}
 local headOffset = Vector3.new(0, 0.5, 0)
 
--- Fly Variables
 local flying = false
 local flySpeed = 200
 local bv = nil
 local bg = nil
 
--- ESP Variables
 local ESPEnabled = false
 local Drawings = {}
 
--- Create Aimbot Indicator UI (Bottom Right Circle)
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "SilentAimIndicator"
 if syn and syn.protect_gui then syn.protect_gui(screenGui) end 
@@ -37,7 +32,7 @@ local indicator = Instance.new("Frame")
 indicator.Name = "Circle"
 indicator.Size = UDim2.new(0, 30, 0, 30)
 indicator.Position = UDim2.new(1, -50, 1, -50) 
-indicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Starts Red (OFF)
+indicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 indicator.BorderSizePixel = 0
 indicator.Parent = screenGui
 
@@ -45,11 +40,22 @@ local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(1, 0) 
 corner.Parent = indicator
 
--- Utility Functions
 local function isLobbyVisible()
     local mainGui = localPlayer.PlayerGui:FindFirstChild("MainGui")
     if mainGui and mainGui:FindFirstChild("MainFrame") and mainGui.MainFrame:FindFirstChild("Lobby") and mainGui.MainFrame.Lobby:FindFirstChild("Currency") then
         return mainGui.MainFrame.Lobby.Currency.Visible == true
+    end
+    return false
+end
+
+local function isTeammate(player)
+    if player == localPlayer then return true end
+    local char = player.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        local teamValue = char.HumanoidRootPart:FindFirstChild("isTeammate")
+        if teamValue and teamValue.Value == true then
+            return true
+        end
     end
     return false
 end
@@ -61,24 +67,24 @@ local function checkLineOfSight(origin, targetPos, baseExcludeList)
 
     local excludeList = {table.unpack(baseExcludeList)}
     params.FilterDescendantsInstances = excludeList
+    
+    local maxPierces = 3
+    local pierces = 0
 
-    while true do
+    while pierces < maxPierces do
         local result = workspace:Raycast(origin, direction, params)
         if not result then return true end
 
         local hitPart = result.Instance
-        if hitPart then
-            if hitPart.Size.X <= 1 or hitPart.Size.Y <= 1 or hitPart.Size.Z <= 1 then
-                table.insert(excludeList, hitPart)
-                params.FilterDescendantsInstances = excludeList
-            else
-                return false
-            end
+        if hitPart and (hitPart.Size.X <= 1 or hitPart.Size.Y <= 1 or hitPart.Size.Z <= 1 or hitPart.Transparency >= 0.5) then
+            table.insert(excludeList, hitPart)
+            params.FilterDescendantsInstances = excludeList
+            pierces = pierces + 1
         else
-            break
+            return false
         end
     end
-    return true
+    return false
 end
 
 local function isVisible(target)
@@ -89,27 +95,14 @@ local function isVisible(target)
 
     local origin = char.Head.Position
     local targetHead = targetChar.Head
+    
     local baseExcludeList = {}
     for _, p in ipairs(Players:GetPlayers()) do
         if p.Character then table.insert(baseExcludeList, p.Character) end
     end
 
-    local successfulHits = 0
-    local headSize = targetHead.Size
-    local offsets = {
-        Vector3.new(0, 0, 0), Vector3.new(0.5, 0, 0), Vector3.new(-0.5, 0, 0),
-        Vector3.new(0, 0.5, 0), Vector3.new(0, -0.5, 0)
-    }
-
-    for _, offset in ipairs(offsets) do
-        local localOffset = Vector3.new(offset.X * headSize.X, offset.Y * headSize.Y, offset.Z * headSize.Z)
-        local targetPos = (targetHead.CFrame * localOffset) + headOffset
-        if checkLineOfSight(origin, targetPos, baseExcludeList) then
-            successfulHits = successfulHits + 1
-        end
-    end
-
-    return successfulHits > 2
+    local targetPos = targetHead.Position + headOffset
+    return checkLineOfSight(origin, targetPos, baseExcludeList)
 end
 
 local function getClosestPlayer()
@@ -125,7 +118,7 @@ local function getClosestPlayer()
             local head = player.Character.Head
             local humanoid = player.Character.Humanoid
             
-            if humanoid.Health > 0 and not table.find(ignoredPlayers, player) then
+            if humanoid.Health > 0 and not isTeammate(player) then
                 if isVisible(player) then
                     local distance = ((head.Position + headOffset) - myPos).Magnitude
                     if distance < shortestDistance then
@@ -147,7 +140,6 @@ local function lockCameraToHead()
     end
 end
 
--- ESP Functions
 local function CreateESP(player)
     local box = Drawing.new("Square")
     box.Visible = false
@@ -202,17 +194,14 @@ for _, player in pairs(Players:GetPlayers()) do
     if player ~= localPlayer then CreateESP(player) end
 end
 
--- Fly Function
 local function toggleFly()
     flying = not flying
     if not flying then
-        -- Clean up physics if we turn it off intentionally
         if bv then bv:Destroy(); bv = nil end
         if bg then bg:Destroy(); bg = nil end
     end
 end
 
--- Main Loops
 local heartbeatConnection
 heartbeatConnection = RunService.Heartbeat:Connect(function()
     if not isRunning then
@@ -242,7 +231,6 @@ end)
 RunService.RenderStepped:Connect(function()
     if not isRunning then return end
 
-    -- ESP Rendering
     if ESPEnabled then
         for player, data in pairs(Drawings) do
             local character = player.Character
@@ -251,7 +239,7 @@ RunService.RenderStepped:Connect(function()
                 local humanoid = character.Humanoid
                 local pos, onScreen = camera:WorldToViewportPoint(hrp.Position)
                 
-                if onScreen and humanoid.Health > 0 then
+                if onScreen and humanoid.Health > 0 and not isTeammate(player) then
                     local size = Vector2.new(2000 / pos.Z, 2500 / pos.Z)
                     local boxPos = Vector2.new(pos.X - size.X / 2, pos.Y - size.Y / 2)
                     
@@ -288,11 +276,9 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    -- Resilient Fly Mechanics
     if flying and localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") then
         local hrp = localPlayer.Character.HumanoidRootPart
         
-        -- Automatically recreate physics bodies if they were lost during a teleport
         if not bv or bv.Parent ~= hrp then
             if bv then bv:Destroy() end
             bv = Instance.new("BodyVelocity")
@@ -326,7 +312,6 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Input Handling
 local inputConnection
 inputConnection = UserInputService.InputBegan:Connect(function(input, isProcessed)
     if not isRunning then
@@ -335,27 +320,8 @@ inputConnection = UserInputService.InputBegan:Connect(function(input, isProcesse
     end
 
     if input.KeyCode == Enum.KeyCode.K and not isProcessed then
-        -- TOGGLE AIMBOT AND UPDATE CIRCLE COLOR
         isEnabled = not isEnabled
         indicator.BackgroundColor3 = isEnabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
-        
-    elseif input.KeyCode == Enum.KeyCode.L and not isProcessed then
-        ignoredPlayers = {}
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= localPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                local distance = (player.Character.HumanoidRootPart.Position - localPlayer.Character.HumanoidRootPart.Position).Magnitude
-                if distance <= 20 then
-                    table.insert(ignoredPlayers, player)
-                end
-            end
-        end
-        -- Briefly flash yellow to confirm ignore list updated
-        indicator.BackgroundColor3 = Color3.fromRGB(255, 255, 0)
-        task.delay(0.5, function()
-            if isRunning then
-                indicator.BackgroundColor3 = isEnabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
-            end
-        end)
         
     elseif input.KeyCode == Enum.KeyCode.U and not isProcessed then
         isRunning = false

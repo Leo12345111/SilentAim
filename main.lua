@@ -23,6 +23,11 @@ local bg = nil
 local ESPEnabled = false
 local Drawings = {}
 
+-- Prediction Variables
+local usePrediction = true
+local projectileSpeed = 1500 -- Adjust this to match the game's bullet speed
+local pingCompensation = 0.05 -- Time in seconds to offset latency (optional)
+
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "SilentAimIndicator"
 if syn and syn.protect_gui then syn.protect_gui(screenGui) end 
@@ -126,10 +131,29 @@ local function getClosestPlayer()
 end
 
 local function lockCameraToHead()
-    if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("Head") then
+    if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("Head") and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
         local head = targetPlayer.Character.Head
+        local targetHRP = targetPlayer.Character.HumanoidRootPart
         local cameraPosition = camera.CFrame.Position
-        camera.CFrame = CFrame.new(cameraPosition, head.Position + headOffset)
+        
+        local aimPosition = head.Position + headOffset
+
+        if usePrediction then
+            -- Get the target's current movement velocity
+            local velocity = targetHRP.AssemblyLinearVelocity
+            
+            -- Calculate distance from your camera to the target
+            local distance = (aimPosition - cameraPosition).Magnitude
+            
+            -- Calculate how long the bullet will take to reach that distance
+            local timeToHit = (distance / projectileSpeed) + pingCompensation
+            
+            -- Offset the aim position based on their velocity and the time it takes to hit
+            aimPosition = aimPosition + (velocity * timeToHit)
+        end
+
+        -- Lock the camera to the newly calculated predicted position
+        camera.CFrame = CFrame.new(cameraPosition, aimPosition)
     end
 end
 

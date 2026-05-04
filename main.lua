@@ -48,41 +48,6 @@ local function isLobbyVisible()
     return false
 end
 
-local function isTeammate(player)
-    -- 1. Check if the player is yourself
-    if player == localPlayer then return true end
-    
-    -- 2. Fallback: Check standard built-in Roblox Teams
-    if localPlayer.Team ~= nil and player.Team == localPlayer.Team then
-        return true
-    end
-
-    -- 3. Check for the custom object in the HumanoidRootPart
-    local char = player.Character
-    if char and char:FindFirstChild("HumanoidRootPart") then
-        local hrp = char.HumanoidRootPart
-        
-        -- Check for both common capitalization types
-        local teamValue = hrp:FindFirstChild("isTeammate") or hrp:FindFirstChild("IsTeammate")
-        
-        if teamValue then
-            -- Safely check if it has a .Value property (BoolValue, StringValue, etc.)
-            local hasValue, actualValue = pcall(function() return teamValue.Value end)
-            
-            if hasValue then
-                if actualValue == true or tostring(actualValue):lower() == "true" then
-                    return true
-                end
-            else
-                -- If the object exists but doesn't have a .Value (like a Folder acting as a tag), assume true
-                return true
-            end
-        end
-    end
-    
-    return false
-end
-
 local function checkLineOfSight(origin, targetPos, baseExcludeList)
     local direction = targetPos - origin
     local params = RaycastParams.new()
@@ -137,16 +102,21 @@ local function getClosestPlayer()
     local myPos = character.HumanoidRootPart.Position
 
     for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= localPlayer and player.Character and player.Character:FindFirstChild("Head") and player.Character:FindFirstChild("Humanoid") then
+        if player ~= localPlayer and player.Character and player.Character:FindFirstChild("Head") and player.Character:FindFirstChild("HumanoidRootPart") then
+            local hrp = player.Character.HumanoidRootPart
             local head = player.Character.Head
-            local humanoid = player.Character.Humanoid
+            local humanoid = player.Character:FindFirstChild("Humanoid")
             
-            if humanoid.Health > 0 and not isTeammate(player) then
-                if isVisible(player) then
-                    local distance = ((head.Position + headOffset) - myPos).Magnitude
-                    if distance < shortestDistance then
-                        closestPlayer = player
-                        shortestDistance = distance
+            if humanoid and humanoid.Health > 0 then
+                local isTeammate = hrp:FindFirstChild("TeammateLabel") ~= nil
+                
+                if not isTeammate then
+                    if isVisible(player) then
+                        local distance = ((head.Position + headOffset) - myPos).Magnitude
+                        if distance < shortestDistance then
+                            closestPlayer = player
+                            shortestDistance = distance
+                        end
                     end
                 end
             end
@@ -262,7 +232,9 @@ RunService.RenderStepped:Connect(function()
                 local humanoid = character.Humanoid
                 local pos, onScreen = camera:WorldToViewportPoint(hrp.Position)
                 
-                if onScreen and humanoid.Health > 0 and not isTeammate(player) then
+                local isTeammate = hrp:FindFirstChild("TeammateLabel") ~= nil
+                
+                if onScreen and humanoid.Health > 0 and not isTeammate then
                     local size = Vector2.new(2000 / pos.Z, 2500 / pos.Z)
                     local boxPos = Vector2.new(pos.X - size.X / 2, pos.Y - size.Y / 2)
                     

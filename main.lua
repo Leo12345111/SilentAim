@@ -7,6 +7,7 @@ local localPlayer = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
 local isEnabled = false
+local autoClickEnabled = false
 local isRunning = true
 local isLeftMouseDown = false
 local leftClickStartTime = 0
@@ -24,20 +25,14 @@ local ESPEnabled = false
 local Drawings = {}
 
 local usePrediction = true
-local projectileSpeed = 7000
-local pingCompensation = 0.05
-
--- Safely handle UI Parent for different executors
-local function getSafeGuiParent()
-    if gethui and typeof(gethui) == "function" then
-        return gethui()
-    end
-    return CoreGui
-end
+local projectileSpeed = 9999999999
+local pingCompensation = 0.1
 
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "SilentAimIndicator"
-screenGui.Parent = getSafeGuiParent()
+screenGui.IgnoreGuiInset = true 
+if syn and syn.protect_gui then syn.protect_gui(screenGui) end 
+screenGui.Parent = CoreGui 
 
 local indicator = Instance.new("Frame")
 indicator.Name = "Circle"
@@ -51,10 +46,42 @@ local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(1, 0) 
 corner.Parent = indicator
 
+local autoClickIndicator = Instance.new("Frame")
+autoClickIndicator.Name = "AutoClickCircle"
+autoClickIndicator.Size = UDim2.new(0, 30, 0, 30)
+autoClickIndicator.Position = UDim2.new(1, -90, 1, -50)
+autoClickIndicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+autoClickIndicator.BorderSizePixel = 0
+autoClickIndicator.Parent = screenGui
+
+local autoClickCorner = Instance.new("UICorner")
+autoClickCorner.CornerRadius = UDim.new(1, 0) 
+autoClickCorner.Parent = autoClickIndicator
+
+local screenTint = Instance.new("Frame")
+screenTint.Name = "ScreenTint"
+screenTint.Size = UDim2.new(1, 0, 1, 0)
+screenTint.Position = UDim2.new(0, 0, 0, 0)
+screenTint.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+screenTint.BackgroundTransparency = 0.6
+screenTint.BorderSizePixel = 0
+screenTint.Visible = false
+screenTint.Parent = screenGui
+
 local function isLobbyVisible()
     local mainGui = localPlayer.PlayerGui:FindFirstChild("MainGui")
     if mainGui and mainGui:FindFirstChild("MainFrame") and mainGui.MainFrame:FindFirstChild("Lobby") and mainGui.MainFrame.Lobby:FindFirstChild("Currency") then
         return mainGui.MainFrame.Lobby.Currency.Visible == true
+    end
+    return false
+end
+
+local function checkIsTeammate(player, hrp)
+    if player.Team ~= nil and localPlayer.Team ~= nil and player.Team == localPlayer.Team then
+        return true
+    end
+    if hrp and hrp:FindFirstChild("TeammateLabel") ~= nil then
+        return true
     end
     return false
 end
@@ -75,7 +102,7 @@ local function checkLineOfSight(origin, targetPos, baseExcludeList)
         if not result then return true end
 
         local hitPart = result.Instance
-        if hitPart and (hitPart.Size.X <= 1 or hitPart.Size.Y <= 1 or hitPart.Size.Z <= 1 or hitPart.Transparency >= 0.5) then
+        if hitPart and (hitPart.Size.X <= 1 or hitPart.Size.Y <= 1 or hitPart.Size.Z <= 1 or hitPart.Transparency >= 0.6) then
             table.insert(excludeList, hitPart)
             params.FilterDescendantsInstances = excludeList
             pierces = pierces + 1
@@ -119,7 +146,7 @@ local function getClosestPlayer()
             local humanoid = player.Character:FindFirstChild("Humanoid")
             
             if humanoid and humanoid.Health > 0 then
-                local isTeammate = hrp:FindFirstChild("TeammateLabel") ~= nil
+                local isTeammate = checkIsTeammate(player, hrp)
                 
                 if not isTeammate then
                     if isVisible(player) then
@@ -156,9 +183,6 @@ local function lockCameraToHead()
 end
 
 local function CreateESP(player)
-    -- SAFEGUARD: Check if the executor actually supports the Drawing API
-    if type(Drawing) ~= "table" or type(Drawing.new) ~= "function" then return end
-
     local box = Drawing.new("Square")
     box.Visible = false
     box.Color = Color3.new(1, 0, 0)
@@ -217,12 +241,24 @@ local function toggleFly()
     if not flying then
         if bv then bv:Destroy(); bv = nil end
         if bg then bg:Destroy(); bg = nil end
-        
-        if localPlayer.Character and localPlayer.Character:FindFirstChild("Humanoid") then
-            localPlayer.Character.Humanoid.PlatformStand = false
-        end
     end
 end
+
+task.spawn(function()
+    while task.wait(0.01) do
+        if not isRunning then break end
+        
+        if isEnabled and autoClickEnabled and not isLobbyVisible() then
+            targetPlayer = getClosestPlayer()
+            if targetPlayer then
+                lockCameraToHead()
+                if typeof(mouse1click) == "function" then
+                    mouse1click()
+                end
+            end
+        end
+    end
+end)
 
 local heartbeatConnection
 heartbeatConnection = RunService.Heartbeat:Connect(function()
@@ -253,6 +289,17 @@ end)
 RunService.RenderStepped:Connect(function()
     if not isRunning then return end
 
+    if isEnabled and not isLobbyVisible() then
+        local validTarget = getClosestPlayer()
+        if validTarget then
+            screenTint.Visible = true
+        else
+            screenTint.Visible = false
+        end
+    else
+        screenTint.Visible = false
+    end
+
     if ESPEnabled then
         for player, data in pairs(Drawings) do
             local character = player.Character
@@ -261,7 +308,7 @@ RunService.RenderStepped:Connect(function()
                 local humanoid = character.Humanoid
                 local pos, onScreen = camera:WorldToViewportPoint(hrp.Position)
                 
-                local isTeammate = hrp:FindFirstChild("TeammateLabel") ~= nil
+                local isTeammate = checkIsTeammate(player, hrp)
                 
                 if onScreen and humanoid.Health > 0 and not isTeammate then
                     local size = Vector2.new(2000 / pos.Z, 2500 / pos.Z)
@@ -302,11 +349,6 @@ RunService.RenderStepped:Connect(function()
 
     if flying and localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") then
         local hrp = localPlayer.Character.HumanoidRootPart
-        local humanoid = localPlayer.Character:FindFirstChild("Humanoid")
-        
-        if humanoid then
-            humanoid.PlatformStand = true
-        end
         
         if not bv or bv.Parent ~= hrp then
             if bv then bv:Destroy() end
@@ -352,6 +394,10 @@ inputConnection = UserInputService.InputBegan:Connect(function(input, isProcesse
         isEnabled = not isEnabled
         indicator.BackgroundColor3 = isEnabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
         
+    elseif input.KeyCode == Enum.KeyCode.J and not isProcessed then
+        autoClickEnabled = not autoClickEnabled
+        autoClickIndicator.BackgroundColor3 = autoClickEnabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+
     elseif input.KeyCode == Enum.KeyCode.U and not isProcessed then
         isRunning = false
         screenGui:Destroy()

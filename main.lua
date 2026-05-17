@@ -1057,7 +1057,7 @@ end
 
 local masterInput = UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
-    if input.KeyCode == Enum.KeyCode.I then
+    if input.KeyCode == Enum.KeyCode.Y then
         switchScript()
     elseif input.KeyCode == Enum.KeyCode.U then
         if activeScriptCleanup then

@@ -240,8 +240,9 @@ local function startScript1()
         if not characterWillFit(part.CFrame, ignoreList, part) then return false end
         if isNearDamage(part.Position, 15, ignoreList) then return false end
         
-        local raycastResult = castRobustRay(enemyHead.Position, part.Position, ignoreList)
-        if not raycastResult or raycastResult.Instance == part or raycastResult.Instance:IsDescendantOf(part) then
+        local fakeHeadPos = part.Position + Vector3.new(0, 1.5, 0)
+        local raycastResult = castRobustRay(fakeHeadPos, enemyHead.Position, ignoreList)
+        if not raycastResult or raycastResult.Instance:IsDescendantOf(enemyHead.Parent) then
             return true
         end
         return false
@@ -267,8 +268,9 @@ local function startScript1()
                 if not isNearDamage(part.Position, 15, ignoreList) then
                     if characterWillFit(part.CFrame, ignoreList, part) then
                         if raycastTarget then
-                            local raycastResult = castRobustRay(raycastTarget.Position, part.Position, ignoreList)
-                            if not raycastResult or raycastResult.Instance == part or raycastResult.Instance:IsDescendantOf(part) then
+                            local fakeHeadPos = part.Position + Vector3.new(0, 1.5, 0)
+                            local raycastResult = castRobustRay(fakeHeadPos, raycastTarget.Position, ignoreList)
+                            if not raycastResult or raycastResult.Instance:IsDescendantOf(raycastTarget.Parent) then
                                 table.insert(validParts, part)
                             end
                         else

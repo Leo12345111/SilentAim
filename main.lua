@@ -76,7 +76,7 @@ local function castRobustRay(origin, targetPos, ignoreList)
     local currentIgnore = {table.unpack(ignoreList)}
     params.FilterDescendantsInstances = currentIgnore
     
-    local maxPierces = 5
+    local maxPierces = 10
     local pierces = 0
     
     while pierces < maxPierces do
@@ -86,7 +86,7 @@ local function castRobustRay(origin, targetPos, ignoreList)
         end
         
         local hitPart = result.Instance
-        if hitPart and hitPart.Parent and (hitPart.Size.X <= 1.5 or hitPart.Size.Y <= 1.5 or hitPart.Size.Z <= 1.5 or hitPart.Transparency >= 0.5 or not hitPart.CanCollide or hitPart:IsA("Accessory") or hitPart.Parent:IsA("Accessory")) then
+        if hitPart and hitPart.Parent and (hitPart.Size.X <= 2 or hitPart.Size.Y <= 2 or hitPart.Size.Z <= 2 or hitPart.Transparency >= 0.3 or not hitPart.CanCollide or hitPart:IsA("Accessory") or hitPart.Parent:IsA("Accessory")) then
             table.insert(currentIgnore, hitPart)
             params.FilterDescendantsInstances = currentIgnore
             pierces = pierces + 1
@@ -242,6 +242,7 @@ local function startScript1()
         
         local fakeHeadPos = part.Position + Vector3.new(0, 1.5, 0)
         local raycastResult = castRobustRay(fakeHeadPos, enemyHead.Position, ignoreList)
+        
         if not raycastResult or raycastResult.Instance:IsDescendantOf(enemyHead.Parent) then
             return true
         end
@@ -328,17 +329,26 @@ local function startScript1()
         end
 
         if #storedSafeParts > 0 then
-            local activeSafe = storedSafeParts[safeToggleIndex]
-            if activeSafe and activeSafe.Parent then
-                myCharacter:PivotTo(activeSafe.CFrame)
+            local targetCFrame
+            
+            if safeToggleIndex == 1 then
+                if storedSafeParts[1] and storedSafeParts[1].Parent then
+                    targetCFrame = storedSafeParts[1].CFrame
+                end
+            else
+                if storedSafeParts[2] and storedSafeParts[2].Parent then
+                    targetCFrame = storedSafeParts[2].CFrame
+                elseif storedSafeParts[1] then
+                    targetCFrame = CFrame.new(activationPos)
+                end
+            end
+
+            if targetCFrame then
+                myCharacter:PivotTo(targetCFrame)
                 hrp.AssemblyLinearVelocity = Vector3.zero
                 hrp.AssemblyAngularVelocity = Vector3.zero
                 
-                if storedSafeParts[2] then
-                    safeToggleIndex = safeToggleIndex == 1 and 2 or 1
-                else
-                    safeToggleIndex = 1
-                end
+                safeToggleIndex = safeToggleIndex == 1 and 2 or 1
                 return true
             end
         end
@@ -406,19 +416,27 @@ local function startScript1()
                                         end
                                     end
                                     
-                                    local activePart = attackParts[attackToggleIndex]
-                                    if activePart and activePart.Parent then
-                                        myCharacter:PivotTo(activePart.CFrame)
+                                    local targetCFrame
+                                    if attackToggleIndex == 1 then
+                                        if attackParts[1] and attackParts[1].Parent then
+                                            targetCFrame = attackParts[1].CFrame
+                                        end
+                                    else
+                                        if attackParts[2] and attackParts[2].Parent then
+                                            targetCFrame = attackParts[2].CFrame
+                                        elseif attackParts[1] then
+                                            targetCFrame = CFrame.new(activationPos)
+                                        end
+                                    end
+                                    
+                                    if targetCFrame then
+                                        myCharacter:PivotTo(targetCFrame)
                                         hrp.AssemblyLinearVelocity = Vector3.zero
                                         hrp.AssemblyAngularVelocity = Vector3.zero
                                         
                                         lockCameraToHead()
                                         
-                                        if attackParts[2] then
-                                            attackToggleIndex = attackToggleIndex == 1 and 2 or 1
-                                        else
-                                            attackToggleIndex = 1
-                                        end
+                                        attackToggleIndex = attackToggleIndex == 1 and 2 or 1
                                         
                                         fireWeapon()
                                     end
@@ -645,7 +663,7 @@ local function startScript2()
             if not result then return true end
 
             local hitPart = result.Instance
-            if hitPart and (hitPart.Size.X <= 1 or hitPart.Size.Y <= 1 or hitPart.Size.Z <= 1 or hitPart.Transparency >= 0.6) then
+            if hitPart and (hitPart.Size.X <= 2 or hitPart.Size.Y <= 2 or hitPart.Size.Z <= 2 or hitPart.Transparency >= 0.3 or not hitPart.CanCollide) then
                 table.insert(excludeList, hitPart)
                 params.FilterDescendantsInstances = excludeList
                 pierces = pierces + 1
